@@ -32,11 +32,11 @@ def evaluate(qf,ql,qc,gf,gl,gc):
     junk_index2 = np.intersect1d(query_index, camera_index)
     junk_index = np.append(junk_index2, junk_index1) #.flatten())
     
-    CMC_tmp = compute_mAP(index, qc, good_index, junk_index)
+    CMC_tmp = compute_mAP(index, gc, qc, good_index, junk_index)
     return CMC_tmp
 
 
-def compute_mAP(index, qc, good_index, junk_index):
+def compute_mAP(index, gc, qc, good_index, junk_index):
     ap = 0
     cmc = torch.IntTensor(len(index)).zero_()
     if good_index.size==0:   # if empty
@@ -44,7 +44,7 @@ def compute_mAP(index, qc, good_index, junk_index):
         return ap,cmc
 
     # remove junk_index
-    ranked_camera = gallery_cam[index]
+    ranked_camera = gc[index]
     mask = np.in1d(index, junk_index, invert=True)
     mask2 = np.in1d(index, np.append(good_index,junk_index), invert=True)
     index = index[mask]
