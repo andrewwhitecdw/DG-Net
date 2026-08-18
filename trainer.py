@@ -75,9 +75,9 @@ def fliplr(img):
 
 def update_teacher(model_s, model_t, alpha=0.999):
     for param_s, param_t in zip(model_s.parameters(), model_t.parameters()):
-        param_t.data.mul_(alpha).add_(1 - alpha, param_s.data)
+        param_t.data.mul_(alpha).add_(param_s.data, alpha=1 - alpha)
 
-def predict_label(teacher_models, inputs, num_class, alabel, slabel, teacher_style=0):
+def predict_label(teacher_models, inputs, num_class, alabel, slabel, teacher_style=0, alpha=0.5):
 # teacher_style:
 # 0: Our smooth dynamic label
 # 1: Pseudo label, hard dynamic label
@@ -96,7 +96,7 @@ def predict_label(teacher_models, inputs, num_class, alabel, slabel, teacher_sty
             if count==0:
                 outputs_t = outputs_t1 + outputs_t2
             else:
-                outputs_t = outputs_t * opt.alpha  # old model decay
+                outputs_t = outputs_t * alpha  # old model decay
                 outputs_t += outputs_t1 + outputs_t2
             count +=2
     elif teacher_style == 1:  # dynamic one-hot  label
@@ -110,7 +110,7 @@ def predict_label(teacher_models, inputs, num_class, alabel, slabel, teacher_sty
             if count==0:
                 outputs_t = outputs_t1 + outputs_t2
             else:
-                outputs_t = outputs_t * opt.alpha  # old model decay
+                outputs_t = outputs_t * alpha  # old model decay
                 outputs_t += outputs_t1 + outputs_t2
             count +=2
         _, dlabel = torch.max(outputs_t.data, 1)
@@ -134,7 +134,7 @@ def predict_label(teacher_models, inputs, num_class, alabel, slabel, teacher_sty
             if count==0:
                 outputs_t = outputs_t1 + outputs_t2
             else:
-                outputs_t = outputs_t * opt.alpha  # old model decay
+                outputs_t = outputs_t * alpha  # old model decay
                 outputs_t += outputs_t1 + outputs_t2
             count +=2
         mask = torch.zeros(outputs_t.shape)
@@ -144,7 +144,7 @@ def predict_label(teacher_models, inputs, num_class, alabel, slabel, teacher_sty
             mask[i, slabel[i]] = 1
         outputs_t = outputs_t*mask
     else:
-        print('not valid style. teacher-style is in [0-3].')
+        raise ValueError('not valid style. teacher-style is in [0-3].')
 
     s = torch.sum(outputs_t, dim=1, keepdim=True)
     s = s.expand_as(outputs_t)
@@ -407,12 +407,12 @@ class DGNet_Trainer(nn.Module):
             if hyperparameters['ID_style'] == 'normal':
                 _, p_a_student = self.id_a(scale2(x_ba_copy))
                 p_a_student = log_sm(p_a_student)
-                p_a_teacher = predict_label(self.teacher_model, scale2(x_ba_copy), num_class = hyperparameters['ID_class'], alabel = l_a, slabel = l_b, teacher_style = hyperparameters['teacher_style'])
+                p_a_teacher = predict_label(self.teacher_model, scale2(x_ba_copy), num_class = hyperparameters['ID_class'], alabel = l_a, slabel = l_b, teacher_style = hyperparameters['teacher_style'], alpha = hyperparameters.get('alpha', 0.5))
                 self.loss_teacher = self.criterion_teacher(p_a_student, p_a_teacher) / p_a_student.size(0)
 
                 _, p_b_student = self.id_b(scale2(x_ab_copy))
                 p_b_student = log_sm(p_b_student)
-                p_b_teacher = predict_label(self.teacher_model, scale2(x_ab_copy), num_class = hyperparameters['ID_class'], alabel = l_b, slabel = l_a, teacher_style = hyperparameters['teacher_style'])
+                p_b_teacher = predict_label(self.teacher_model, scale2(x_ab_copy), num_class = hyperparameters['ID_class'], alabel = l_b, slabel = l_a, teacher_style = hyperparameters['teacher_style'], alpha = hyperparameters.get('alpha', 0.5))
                 self.loss_teacher += self.criterion_teacher(p_b_student, p_b_teacher) / p_b_student.size(0)
             elif hyperparameters['ID_style'] == 'AB':
                 # normal teacher-student loss
@@ -420,13 +420,13 @@ class DGNet_Trainer(nn.Module):
                 _, p_ba_student = self.id_a(scale2(x_ba_copy))# f_a, s_b
                 p_a_student = log_sm(p_ba_student[0])
                 with torch.no_grad():
-                    p_a_teacher = predict_label(self.teacher_model, scale2(x_ba_copy), num_class = hyperparameters['ID_class'], alabel = l_a, slabel = l_b, teacher_style = hyperparameters['teacher_style'])
+                    p_a_teacher = predict_label(self.teacher_model, scale2(x_ba_copy), num_class = hyperparameters['ID_class'], alabel = l_a, slabel = l_b, teacher_style = hyperparameters['teacher_style'], alpha = hyperparameters.get('alpha', 0.5))
                 self.loss_teacher = self.criterion_teacher(p_a_student, p_a_teacher) / p_a_student.size(0)
 
                 _, p_ab_student = self.id_b(scale2(x_ab_copy)) # f_b, s_a
                 p_b_student = log_sm(p_ab_student[0])
                 with torch.no_grad():
-                    p_b_teacher = predict_label(self.teacher_model, scale2(x_ab_copy), num_class = hyperparameters['ID_class'], alabel = l_b, slabel = l_a, teacher_style = hyperparameters['teacher_style'])
+                    p_b_teacher = predict_label(self.teacher_model, scale2(x_ab_copy), num_class = hyperparameters['ID_class'], alabel = l_b, slabel = l_a, teacher_style = hyperparameters['teacher_style'], alpha = hyperparameters.get('alpha', 0.5))
                 self.loss_teacher += self.criterion_teacher(p_b_student, p_b_teacher) / p_b_student.size(0)
 
                 # branch b loss
