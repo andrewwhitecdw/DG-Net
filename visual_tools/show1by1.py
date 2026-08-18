@@ -55,18 +55,24 @@ else:
 
 state_dict_gen = torch.load(opts.checkpoint_gen)
 trainer.gen_a.load_state_dict(state_dict_gen['a'], strict=False)
-trainer.gen_b = trainer.gen_a
+trainer.gen_b.load_state_dict(state_dict_gen['b'], strict=False)
 
 state_dict_id = torch.load(opts.checkpoint_id)
 trainer.id_a.load_state_dict(state_dict_id['a'])
-trainer.id_b = trainer.id_a
+trainer.id_b.load_state_dict(state_dict_id['b'])
 
 trainer.cuda()
 trainer.eval()
-encode = trainer.gen_a.encode # encode function
-style_encode = trainer.gen_a.encode # encode function
-id_encode = trainer.id_a # encode function
-decode = trainer.gen_a.decode # decode function
+if opts.a2b == 1:
+    encode = trainer.gen_a.encode # encode function
+    style_encode = trainer.gen_a.encode # encode function
+    id_encode = trainer.id_a # encode function
+    decode = trainer.gen_a.decode # decode function
+else:
+    encode = trainer.gen_b.encode # encode function
+    style_encode = trainer.gen_b.encode # encode function
+    id_encode = trainer.id_b # encode function
+    decode = trainer.gen_b.decode # decode function
 
 data_transforms = transforms.Compose([
         transforms.Resize((256,128), interpolation=3),
@@ -92,9 +98,8 @@ def recover(inp):
     inp = np.clip(inp, 0, 255)
     return inp
 
-save_path = './visual_data/rainbow'
-if not os.path.isdir(save_path):
-    os.mkdir(save_path)
+save_path = opts.output_folder
+os.makedirs(save_path, exist_ok=True)
 
 im = {}
 count = 0
